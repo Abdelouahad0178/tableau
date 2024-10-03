@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau Dynamique pour Conférence</title>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        #tools {
+            padding: 20px;
+            background-color: #ddd;
+            float: left;
+            width: 20%;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        #workspace {
+            padding: 20px;
+            margin-left: 22%;
+            height: 100vh;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .tool {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: white;
+            border: 1px solid #ccc;
+            cursor: grab;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #ccc;
+            background-color: white;
+            position: relative;
+        }
+
+        .draggable {
+            cursor: move;
+        }
+
+        /* Barre d'outils flottante */
+        #textEditorToolbar {
+    display: none;
+    position: absolute;
+    background-color: white;
+    border: 1px solid black;
+    padding: 10px;
+    z-index: 100;
+    top: -50px; /* Ajout d'une marge claire en bas */
+}
+
+
+        /* Styles pour le tableau */
+        .editable-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .editable-table td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .editable-table input {
+            width: 100%;
+            border: none;
+            text-align: center;
+        }
+
+        #addRowButton, #deleteTableButton {
+            margin-top: 10px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            cursor: pointer;
+        }
+
+        /* Styles des éléments sélectionnés */
+        .selected {
+            border: 2px dashed red;
+        }
+
+        /* Position du bouton de suppression */
+        #deleteButton {
+            margin-left: 10px;
+            background-color: red;
+            color: white;
+            padding: 5px;
+            border: none;
+            cursor: pointer;
+        }
+
+
+
+
+
+
+
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Tableau Dynamique pour  Conférence</h1>
+    </header>
+
+    <section id="tools">
+        <h2>Outils</h2>
+        <div class="tool" draggable="true" id="textTool">Texte Simple</div>
+        <div class="tool" draggable="true" id="textAreaTool">Zone de Texte</div>
+        <div class="tool" draggable="true" id="imageTool">Image</div>
+        <div class="tool" draggable="true" id="rectangleTool">Rectangle</div>
+        <div class="tool" draggable="true" id="triangleTool">Triangle</div>
+        <div class="tool" draggable="true" id="diamondTool">Losange</div>
+        <div class="tool" draggable="true" id="lineTool">Règle</div>
+        <div class="tool" id="tableTool">Tableau</div>
+        <input type="file" id="imageUploader" accept="image/*" style="display: none;">
+    </section>
+
+    <section id="workspace">
+        <h2>Zone de travail</h2>
+        <div id="canvas"></div>
+    </section>
+
+    <div id="textEditorToolbar">
+        <label for="fontSize">Taille: </label>
+        <select id="fontSize">
+            <option value="12px">12</option>
+            <option value="14px">14</option>
+            <option value="16px" selected>16</option>
+            <option value="18px">18</option>
+            <option value="20px">20</option>
+            <option value="24px">24</option>
+            <option value="28px">28</option>
+            <option value="32px">32</option>
+        </select>
+
+        <label for="fontWeight">Poids: </label>
+        <select id="fontWeight">
+            <option value="normal" selected>Normal</option>
+            <option value="bold">Gras</option>
+            <option value="lighter">Léger</option>
+        </select>
+
+        <button id="underlineButton">Souligné</button>
+
+        <label for="fontFamily">Police: </label>
+        <select id="fontFamily">
+            <option value="Arial" selected>Arial</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Courier New">Courier New</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Verdana">Verdana</option>
+        </select>
+
+        <label for="borderStyle">Encadrement: </label>
+        <select id="borderStyle">
+            <option value="none" selected>Aucun</option>
+            <option value="solid">Solide</option>
+            <option value="dashed">Pointillé</option>
+            <option value="dotted">Pointeur</option>
+            <option value="double">Double</option>
+        </select>
+
+        <button id="deleteButton">Supprimer</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            let draggedItem = null;
+            let selectedElement = null;
+            const textEditorToolbar = document.getElementById('textEditorToolbar');
+            const deleteButton = document.getElementById('deleteButton');
+            const canvas = document.getElementById('canvas');
+
+            // Ajouter les événements pour chaque outil
+            document.querySelectorAll('.tool').forEach(tool => {
+                tool.addEventListener('click', (e) => {
+                    draggedItem = e.target.id;
+
+                    if (draggedItem === 'tableTool') {
+                        createTable(4, 4);  // Par défaut, crée un tableau 4x4
+                    } else if (draggedItem === 'textTool') {
+                        createTextElement();
+                    } else if (draggedItem === 'textAreaTool') {
+                        createTextAreaElement();
+                    } else if (draggedItem === 'imageTool') {
+                        document.getElementById('imageUploader').click();
+                    } else if (draggedItem === 'rectangleTool') {
+                        createSVGShape('rect', { width: 1200, height: 600, fill: 'lightblue' });
+                    } else if (draggedItem === 'triangleTool') {
+                        createSVGShape('polygon', { points: '50,0 100,100 0,100', fill: 'lightgreen' });
+                    } else if (draggedItem === 'diamondTool') {
+                        createSVGShape('polygon', { points: '50,0 100,50 50,100 0,50', fill: 'lightcoral' });
+                    } else if (draggedItem === 'lineTool') {
+                        createSVGShape('rect', { width: 150, height: 5, fill: 'black' });
+                    }
+                });
+            });
+
+            // Fonction pour créer un élément de texte simple
+            function createTextElement() {
+                const newElement = document.createElement('div');
+                newElement.className = 'draggable resizable selectable';
+                newElement.contentEditable = true;
+                newElement.innerText = 'Texte ici';
+                newElement.style.position = 'absolute';
+                newElement.style.left = '50px';
+                newElement.style.top = '50px';
+                newElement.style.border = '1px solid black';
+                newElement.style.padding = '5px';
+                newElement.style.backgroundColor = 'white';
+                canvas.appendChild(newElement);
+                makeElementInteractable(newElement);
+                addSelectionListener(newElement);
+            }
+
+            // Fonction pour créer une zone de texte
+            function createTextAreaElement() {
+                const newElement = document.createElement('textarea');
+                newElement.className = 'draggable resizable selectable';
+                newElement.style.position = 'absolute';
+                newElement.style.left = '50px';
+                newElement.style.top = '50px';
+                newElement.style.width = '200px';
+                newElement.style.height = '100px';
+                newElement.style.border = '1px solid black';
+                newElement.style.padding = '5px';
+                newElement.style.backgroundColor = 'white';
+                canvas.appendChild(newElement);
+                makeElementInteractable(newElement);
+                addSelectionListener(newElement);
+            }
+
+            // Fonction pour créer des formes SVG
+            function createSVGShape(type, attributes) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                const element = document.createElementNS('http://www.w3.org/2000/svg', type);
+
+                for (const [key, value] of Object.entries(attributes)) {
+                    element.setAttribute(key, value);
+                }
+
+                svg.appendChild(element);
+                svg.style.position = 'absolute';
+                svg.style.left = '50px';
+                svg.style.top = '50px';
+                svg.style.width = '150px';
+                svg.style.height = '150px';
+                canvas.appendChild(svg);
+                makeElementInteractable(svg);
+                addSelectionListener(svg);
+            }
+
+            // Fonction pour créer un tableau
+            function createTable(rows, cols) {
+                const tableContainer = document.createElement('div');
+                const table = document.createElement('table');
+                table.classList.add('editable-table', 'draggable', 'resizable');
+
+                for (let i = 0; i < rows; i++) {
+                    const row = table.insertRow();
+                    for (let j = 0; j < cols; j++) {
+                        const cell = row.insertCell();
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.setAttribute('data-row', i + 1);
+                        input.setAttribute('data-col', j + 1);
+                        input.addEventListener('blur', handleTableInput);
+                        cell.appendChild(input);
+                    }
+                }
+
+                tableContainer.appendChild(table);
+
+                const addRowButton = document.createElement('button');
+                addRowButton.id = 'addRowButton';
+                addRowButton.innerText = 'Ajouter une ligne';
+                addRowButton.addEventListener('click', () => addRow(table));
+
+                const deleteTableButton = document.createElement('button');
+                deleteTableButton.id = 'deleteTableButton';
+                deleteTableButton.innerText = 'Supprimer le tableau';
+                deleteTableButton.addEventListener('click', () => {
+                    tableContainer.remove();
+                });
+
+                tableContainer.appendChild(addRowButton);
+                tableContainer.appendChild(deleteTableButton);
+
+                tableContainer.style.position = 'absolute';
+                tableContainer.style.left = '50px';
+                tableContainer.style.top = '50px';
+                canvas.appendChild(tableContainer);
+                makeElementInteractable(tableContainer);
+                addSelectionListener(tableContainer);
+            }
+
+            // Fonction pour ajouter une ligne au tableau
+            function addRow(table) {
+                const newRow = table.insertRow();
+                const cols = table.rows[0].cells.length;
+
+                for (let i = 0; i < cols; i++) {
+                    const newCell = newRow.insertCell();
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.setAttribute('data-row', newRow.rowIndex + 1);
+                    input.setAttribute('data-col', i + 1);
+                    input.addEventListener('blur', handleTableInput);
+                    newCell.appendChild(input);
+                }
+            }
+
+            // Fonction pour gérer les formules dans les cellules du tableau
+            function handleTableInput(e) {
+                const input = e.target;
+                const value = input.value;
+
+                if (value.startsWith('=')) {
+                    try {
+                        const formula = value.slice(1).replace(/([A-Z]+[0-9]+)/g, function(match) {
+                            const cell = getCellFromRef(match);
+                            return cell ? parseFloat(cell.value || 0) : 0;
+                        });
+                        input.value = eval(formula);
+                    } catch (error) {
+                        input.value = 'Erreur';
+                    }
+                }
+            }
+
+            // Fonction pour obtenir une cellule en fonction de la référence
+            function getCellFromRef(ref) {
+                const col = ref.charCodeAt(0) - 65;
+                const row = parseInt(ref.slice(1), 10) - 1;
+                const table = document.querySelector('.editable-table');
+                if (table && table.rows[row]) {
+                    return table.rows[row].cells[col].querySelector('input');
+                }
+                return null;
+            }
+
+            // Rendre les éléments interactifs avec Interact.js
+            function makeElementInteractable(element) {
+                interact(element)
+                    .draggable({
+                        inertia: true,
+                        modifiers: [
+                            interact.modifiers.restrictRect({
+                                restriction: canvas,
+                                endOnly: true
+                            })
+                        ],
+                        onmove: dragMoveListener
+                    })
+                    .resizable({
+                        edges: { left: true, right: true, bottom: true, top: true },
+                        modifiers: [
+                            interact.modifiers.restrictEdges({
+                                outer: canvas
+                            }),
+                            interact.modifiers.restrictSize({
+                                min: { width: 50, height: 50 }
+                            })
+                        ],
+                        inertia: true
+                    })
+                    .on('resizemove', function (event) {
+                        const target = event.target;
+
+                        target.style.width = `${event.rect.width}px`;
+                        target.style.height = `${event.rect.height}px`;
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.deltaRect.left;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.deltaRect.top;
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    });
+            }
+
+            // Fonction pour déplacer les éléments
+            function dragMoveListener(event) {
+                const target = event.target;
+                const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                target.style.transform = `translate(${x}px, ${y}px)`;
+                target.setAttribute('data-x', x);
+                target.setAttribute('data-y', y);
+            }
+
+            // Gérer le téléchargement d'image
+            document.getElementById('imageUploader').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const imgElement = document.createElement('img');
+                        imgElement.className = 'draggable resizable selectable';
+                        imgElement.src = event.target.result;
+                        imgElement.style.position = 'absolute';
+                        imgElement.style.left = '50px';
+                        imgElement.style.top = '50px';
+                        imgElement.style.width = '150px';
+                        imgElement.style.height = 'auto';
+                        canvas.appendChild(imgElement);
+                        makeElementInteractable(imgElement);
+                        addSelectionListener(imgElement);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Fonction pour ajouter les événements de sélection et suppression d'éléments
+            function addSelectionListener(element) {
+                element.addEventListener('click', function () {
+                    if (selectedElement) {
+                        selectedElement.classList.remove('selected');
+                    }
+                    selectedElement = element;
+                    selectedElement.classList.add('selected');
+                    deleteButton.style.display = 'block';
+                    showTextEditorToolbar();  // Afficher la barre d'outils si c'est un élément modifiable
+                });
+            }
+
+            // Fonction pour afficher la barre d'outils de texte
+           function showTextEditorToolbar() {
+    if (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA') {
+        textEditorToolbar.style.display = 'block';
+        textEditorToolbar.style.left = `${selectedElement.getBoundingClientRect().left}px`;
+        textEditorToolbar.style.top = `${selectedElement.getBoundingClientRect().top - 78}px`;
+        textEditorToolbar.style.marginBottom = '90px'; // Ajouter une marge en bas via JS
+    } else {
+        textEditorToolbar.style.display = 'none';
+    }
+}
+
+
+            // Gérer la suppression de l'élément
+            deleteButton.addEventListener('click', function () {
+                if (selectedElement) {
+                    selectedElement.remove();
+                    deleteButton.style.display = 'none';
+                    textEditorToolbar.style.display = 'none';
+                    selectedElement = null;
+                }
+            });
+
+            // Appliquer les modifications de style au texte sélectionné
+            document.getElementById('fontSize').addEventListener('change', function (e) {
+                if (selectedElement && (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA')) {
+                    selectedElement.style.fontSize = e.target.value;
+                }
+            });
+
+            document.getElementById('fontWeight').addEventListener('change', function (e) {
+                if (selectedElement && (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA')) {
+                    selectedElement.style.fontWeight = e.target.value;
+                }
+            });
+
+            document.getElementById('fontFamily').addEventListener('change', function (e) {
+                if (selectedElement && (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA')) {
+                    selectedElement.style.fontFamily = e.target.value;
+                }
+            });
+
+            document.getElementById('underlineButton').addEventListener('click', function () {
+                if (selectedElement && (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA')) {
+                    selectedElement.style.textDecoration = selectedElement.style.textDecoration === 'underline' ? 'none' : 'underline';
+                }
+            });
+
+            document.getElementById('borderStyle').addEventListener('change', function (e) {
+                if (selectedElement && (selectedElement.tagName === 'DIV' || selectedElement.tagName === 'TEXTAREA')) {
+                    selectedElement.style.borderStyle = e.target.value;
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
